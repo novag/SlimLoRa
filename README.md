@@ -1,10 +1,26 @@
 # SlimLoRa Arduino library (WIP, does not work yet)
 
+---
+
+**Note:**
+This library evolved from a fun project [LoRa-ATtiny-Node](https://github.com/novag/LoRa-ATtiny-Node). It was never meant to run on more powerful UCs than an ATtiny85. This fork of the original library tries to support the Arduino ecosystem.
+
+It is currently still being adapted to the Arduino ecosystem and is **not ready for use**!
+
+If you are looking for a stable and proven LoRaWAN library, SlimLoRa is most likely not for you! Go for alternatives like the popular LMIC.
+
+SlimLoRa originated from a code base by Ideentron B.V.. Therefore its structure is similar to the TinyLoRa library.
+SlimLoRa is very different from LMIC. This does not mean it's better, it's different. E.g. SlimLoRa has no eventing system.
+
+Since it was a library optmized for the ATtiny85 many things have to be adjusted to work with the Arduino standard libraries. I do not have a lot of experience with Arduinos, so hints about best practices and contributions in general are appreciated.
+
+---
+
 This repository contains the SlimLoRa LoRaWAN library. It uses AES encryption routines originally written by Ideentron B.V.. SlimLoRa is compatible with all radio chips based on the Semtech SX1276 (e.g. HopeRF RFM95).
 
 SlimLoRa implements the ABP and OTAA activation schemes. It has support for downlink messages and the Adaptive Data Rate (ADR) mechanism.
 
-Although most of the LoRaWAN 1.0.3 Class A specification is implemented, this library does not cover the entire specification and thus *is not fully* LoRaWAN 1.0 compliant. Please verify its behavior before using it on public networks.  
+Although the basic things of the LoRaWAN 1.0.3 Class A specification are implemented, this library does not cover the entire specification and thus *is not fully* LoRaWAN 1.0 compliant. Please verify its behavior before using it on public networks.  
 It also **does not** enforce a duty cycle. This must be ensured by the user.
 
 **Contents:**
