@@ -968,26 +968,22 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
     // Reset ADR acknowledge counter
     adr_ack_counter_ = 0;
 
-    // Process MAC commands
-    f_options_length = packet[5] & 0xF;
-    ProcessFrameOptions(&packet[8], f_options_length);
-
-    // Overwrite MAc commands if packet on port 0xBB
+    // Parse MAC commands from payload if packet on port 0
     port = packet[8 + f_options_length];
-    if (port == 0 || port == 0xBB) {
+    if (port == 0) {
         payload_length = packet_length - 8 - f_options_length - 4;
         EncryptPayload(&packet[8 + f_options_length + 1], payload_length, frame_counter, LORAWAN_DIRECTION_DOWN);
 
         ProcessFrameOptions(&packet[8 + f_options_length + 1], payload_length);
+    } else {
+        // Process MAC commands
+        f_options_length = packet[5] & 0xF;
+        ProcessFrameOptions(&packet[8], f_options_length);
     }
 
     result = 0;
 
 end:
-    if (result == 0 || window == 2) {
-        stop_timer0();
-    }
-
     return result;
 }
 

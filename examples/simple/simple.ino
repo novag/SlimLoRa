@@ -5,6 +5,7 @@
 
 void setup() {
     uint8_t payload[3], payload_length;
+    uint8_t fport = 1;
     SlimLoRa lora = SlimLoRa(8);
 
     delay(1000);
