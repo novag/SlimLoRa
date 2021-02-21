@@ -60,14 +60,14 @@ const uint8_t PROGMEM SlimLoRa::DataRateTable[7][3] = {
 };
 
 // Half symbol times
-const uint16_t PROGMEM SlimLoRa::DRTicksPerHalfSymbol[7] = {
-    ((128 << 7) * TICKS_PER_SECOND + 500000) / 1000000, // SF12BW125
-    ((128 << 6) * TICKS_PER_SECOND + 500000) / 1000000, // SF11BW125
-    ((128 << 5) * TICKS_PER_SECOND + 500000) / 1000000, // SF10BW125
-    ((128 << 4) * TICKS_PER_SECOND + 500000) / 1000000, // SF9BW125
-    ((128 << 3) * TICKS_PER_SECOND + 500000) / 1000000, // SF8BW125
-    ((128 << 2) * TICKS_PER_SECOND + 500000) / 1000000, // SF7BW125
-    ((128 << 1) * TICKS_PER_SECOND + 500000) / 1000000  // SF7BW250
+const uint16_t PROGMEM SlimLoRa::DRMicrosPerHalfSymbol[7] = {
+    ((128 << 7) * MICROS_PER_SECOND + 500000) / 1000000, // SF12BW125
+    ((128 << 6) * MICROS_PER_SECOND + 500000) / 1000000, // SF11BW125
+    ((128 << 5) * MICROS_PER_SECOND + 500000) / 1000000, // SF10BW125
+    ((128 << 4) * MICROS_PER_SECOND + 500000) / 1000000, // SF9BW125
+    ((128 << 3) * MICROS_PER_SECOND + 500000) / 1000000, // SF8BW125
+    ((128 << 2) * MICROS_PER_SECOND + 500000) / 1000000, // SF7BW125
+    ((128 << 1) * MICROS_PER_SECOND + 500000) / 1000000  // SF7BW250
 };
 
 // S_Table for AES encryption
@@ -131,7 +131,7 @@ void SlimLoRa::Begin() {
     mTxFrameCounter = GetTxFrameCounter();
     mRxFrameCounter = GetRxFrameCounter();
     mRx2DataRate = GetRx2DataRate();
-    mRx1DelayTicks = GetRx1Delay() * TICKS_PER_SECOND;
+    mRx1DelayMicros = GetRx1Delay() * MICROS_PER_SECOND;
 }
 
 /**
@@ -141,14 +141,14 @@ void SlimLoRa::Begin() {
  * @param packet_max_length Maximum number of bytes to read from RX packet.
  * @param channel The frequency table channel index.
  * @param dri The data rate table index.
- * @param rx_tickstamp Listen until rx_tickstamp elapsed.
+ * @param rx_microsstamp Listen until rx_microsstamp elapsed.
  * @return The packet length or an error code.
  */
-int8_t SlimLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, uint8_t channel, uint8_t dri, uint32_t rx_tickstamp) {
+int8_t SlimLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, uint8_t channel, uint8_t dri, uint32_t rx_microsstamp) {
     uint8_t modem_config_3, irq_flags, packet_length, read_length;
 
     // Wait for start time
-    wait_until(rx_tickstamp - LORAWAN_RX_SETUP_TICKS);
+    wait_until(rx_microsstamp - LORAWAN_RX_SETUP_MICROS);
 
     // Switch RFM to standby
     RfmWrite(RFM_REG_OP_MODE, 0x81);
@@ -185,7 +185,7 @@ int8_t SlimLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, ui
     RfmWrite(RFM_REG_IRQ_FLAGS, 0xFF);
 
     // Wait for rx time
-    wait_until(rx_tickstamp);
+    wait_until(rx_microsstamp);
 
     // Switch RFM to Rx
     RfmWrite(RFM_REG_OP_MODE, 0x86);
@@ -235,9 +235,8 @@ int8_t SlimLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, ui
  * @param packet_length Length of the TX packet.
  * @param channel The frequency table channel index.
  * @param dri The data rate table index.
- * @param start_timer Wheter or not to start a timer for RX delay.
  */
-void SlimLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t channel, uint8_t dri, bool start_timer) {
+void SlimLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t channel, uint8_t dri) {
     uint8_t modem_config_3;
 
     // Switch RFM to standby
@@ -277,20 +276,14 @@ void SlimLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t cha
         packet++;
     }
 
-    if (start_timer) {
-        init_timer0_16us();
-    }
-
     // Switch RFM to Tx
     RfmWrite(RFM_REG_OP_MODE, 0x83);
 
     // Wait for TxDone in the RegIrqFlags register
     while ((RfmRead(RFM_REG_IRQ_FLAGS) & RFM_STATUS_TX_DONE) != RFM_STATUS_TX_DONE);
 
-    if (start_timer) {
-        ATOMIC_BLOCK(ATOMIC_FORCEON) {
-            mTxDoneTickstamp = t0_ticks;
-        }
+    ATOMIC_BLOCK(ATOMIC_FORCEON) {
+        mTxDoneMicros = micros();
     }
 
     // Clear interrupt
@@ -360,15 +353,15 @@ uint8_t SlimLoRa::RfmRead(uint8_t address) {
 /**
  * Calculates the clock drift adjustment(+-5%).
  */
-uint32_t SlimLoRa::CaluclateDriftAdjustment(uint32_t delay, uint16_t ticks_per_half_symbol) {
+uint32_t SlimLoRa::CaluclateDriftAdjustment(uint32_t delay, uint16_t micros_per_half_symbol) {
     // Clock drift
     uint32_t drift = delay * 5 / 100;
     delay -= drift;
 
-    if ((255 - mRxSymbols) * ticks_per_half_symbol < drift) {
+    if ((255 - mRxSymbols) * micros_per_half_symbol < drift) {
         mRxSymbols = 255;
     } else {
-        mRxSymbols = 6 + drift / ticks_per_half_symbol;
+        mRxSymbols = 6 + drift / micros_per_half_symbol;
     }
 
     return delay;
@@ -377,31 +370,31 @@ uint32_t SlimLoRa::CaluclateDriftAdjustment(uint32_t delay, uint16_t ticks_per_h
 /**
  * Calculates the centered RX window offest.
  */
-int32_t SlimLoRa::CalculateRxWindowOffset(int16_t ticks_per_half_symbol) {
-    const uint16_t ticks_per_symbol = 2 * ticks_per_half_symbol;
+int32_t SlimLoRa::CalculateRxWindowOffset(int16_t micros_per_half_symbol) {
+    const uint16_t micros_per_symbol = 2 * micros_per_half_symbol;
 
-    uint8_t rx_symbols = ((2 * LORAWAN_RX_MIN_SYMBOLS - 8) * ticks_per_symbol + 2 * LORAWAN_RX_ERROR_TICKS + ticks_per_symbol - 1) / ticks_per_symbol;
+    uint8_t rx_symbols = ((2 * LORAWAN_RX_MIN_SYMBOLS - 8) * micros_per_symbol + 2 * LORAWAN_RX_ERROR_MICROS + micros_per_symbol - 1) / micros_per_symbol;
     if (rx_symbols < LORAWAN_RX_MIN_SYMBOLS) {
         rx_symbols = LORAWAN_RX_MIN_SYMBOLS;
     }
     mRxSymbols = rx_symbols;
 
-    return (8 - rx_symbols) * ticks_per_half_symbol - LORAWAN_RX_MARGIN_TICKS;
+    return (8 - rx_symbols) * micros_per_half_symbol - LORAWAN_RX_MARGIN_MICROS;
 }
 
 /**
  * Calculates the RX delay for a given data rate.
  *
- * @return The RX delay in ticks.
+ * @return The RX delay in micros.
  */
 uint32_t SlimLoRa::CalculateRxDelay(uint8_t data_rate, uint32_t delay) {
-    uint16_t ticks_per_half_symbol;
+    uint16_t micros_per_half_symbol;
     int32_t offset;
 
-    ticks_per_half_symbol = pgm_read_word(&(DRTicksPerHalfSymbol[data_rate]));
-    offset = CalculateRxWindowOffset(ticks_per_half_symbol);
+    micros_per_half_symbol = pgm_read_word(&(DRMicrosPerHalfSymbol[data_rate]));
+    offset = CalculateRxWindowOffset(micros_per_half_symbol);
 
-    return CaluclateDriftAdjustment(delay + offset, ticks_per_half_symbol);
+    return CaluclateDriftAdjustment(delay + offset, micros_per_half_symbol);
 }
 
 /**
@@ -685,12 +678,12 @@ int8_t SlimLoRa::ProcessJoinAccept(uint8_t window) {
     uint32_t join_nonce;
 
     if (window == 1) {
-        rx_delay = CalculateRxDelay(mDataRate, LORAWAN_JOIN_ACCEPT_DELAY1_TICKS);
-        packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, mDataRate, mTxDoneTickstamp + rx_delay);
+        rx_delay = CalculateRxDelay(mDataRate, LORAWAN_JOIN_ACCEPT_DELAY1_MICROS);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, mDataRate, mTxDoneMicros + rx_delay);
     } else {
 
-        rx_delay = CalculateRxDelay(mRx2DataRate, LORAWAN_JOIN_ACCEPT_DELAY2_TICKS);
-        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneTickstamp + rx_delay);
+        rx_delay = CalculateRxDelay(mRx2DataRate, LORAWAN_JOIN_ACCEPT_DELAY2_MICROS);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneMicros + rx_delay);
     }
 
     if (packet_length <= 0) {
@@ -762,7 +755,7 @@ int8_t SlimLoRa::ProcessJoinAccept(uint8_t window) {
     SetRx2DataRate(mRx2DataRate);
 
     SetRx1Delay(packet[12] & 0xF);
-    mRx1DelayTicks = GetRx1Delay() * TICKS_PER_SECOND;
+    mRx1DelayMicros = GetRx1Delay() * MICROS_PER_SECOND;
 
     mTxFrameCounter = 0;
     SetTxFrameCounter(0);
@@ -777,10 +770,6 @@ int8_t SlimLoRa::ProcessJoinAccept(uint8_t window) {
     result = 0;
 
 end:
-    if (result == 0 || window == 2) {
-        stop_timer0();
-    }
-
     return result;
 }
 #endif // LORAWAN_OTAA_ENABLED
@@ -870,7 +859,7 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                 break;
             case LORAWAN_FOPT_RX_TIMING_SETUP_REQ:
                 SetRx1Delay(options[i + 1] & 0xF);
-                mRx1DelayTicks = GetRx1Delay() * TICKS_PER_SECOND;
+                mRx1DelayMicros = GetRx1Delay() * MICROS_PER_SECOND;
 
                 mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_RX_TIMING_SETUP_ANS;
 
@@ -921,11 +910,11 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
         if (rx1_offset_dr > SF7BW125) {
             rx1_offset_dr = SF7BW125;
         }
-        rx_delay = CalculateRxDelay(rx1_offset_dr, mRx1DelayTicks);
-        packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, rx1_offset_dr, mTxDoneTickstamp + rx_delay);
+        rx_delay = CalculateRxDelay(rx1_offset_dr, mRx1DelayMicros);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, rx1_offset_dr, mTxDoneMicros + rx_delay);
     } else {
-        rx_delay = CalculateRxDelay(mRx2DataRate, mRx1DelayTicks + TICKS_PER_SECOND);
-        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneTickstamp + rx_delay);
+        rx_delay = CalculateRxDelay(mRx2DataRate, mRx1DelayMicros + MICROS_PER_SECOND);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneMicros + rx_delay);
     }
 
     if (packet_length <= 0) {

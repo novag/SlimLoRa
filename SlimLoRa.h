@@ -6,6 +6,8 @@
 
 #include "config.h"
 
+#define MICROS_PER_SECOND               1000000
+
 // RFM registers
 #define RFM_REG_FIFO                    0x00
 #define RFM_REG_OP_MODE                 0x01
@@ -105,12 +107,12 @@
 #define LORAWAN_JOIN_ACCEPT_MAX_SIZE        28
 
 // LoRaWAN delays in seconds
-#define LORAWAN_JOIN_ACCEPT_DELAY1_TICKS    5 * TICKS_PER_SECOND
-#define LORAWAN_JOIN_ACCEPT_DELAY2_TICKS    6 * TICKS_PER_SECOND
+#define LORAWAN_JOIN_ACCEPT_DELAY1_MICROS   5 * MICROS_PER_SECOND
+#define LORAWAN_JOIN_ACCEPT_DELAY2_MICROS   6 * MICROS_PER_SECOND
 
-#define LORAWAN_RX_ERROR_TICKS              10 * TICKS_PER_SECOND / 1000        // 10 ms
-#define LORAWAN_RX_MARGIN_TICKS             2000 * TICKS_PER_SECOND / 1000000   // 2000 us
-#define LORAWAN_RX_SETUP_TICKS              2000 * TICKS_PER_SECOND / 1000000   // 2000 us
+#define LORAWAN_RX_ERROR_MICROS             10000   // 10 ms
+#define LORAWAN_RX_MARGIN_MICROS            2000    // 2000 us
+#define LORAWAN_RX_SETUP_MICROS             2000    // 2000 us
 #define LORAWAN_RX_MIN_SYMBOLS              6
 
 // EU868 region settings
@@ -136,6 +138,20 @@
 #define SF12BW125   0
 
 
+void wait_until(unsigned long microsstamp) {
+    long delta;
+
+    while (1) {
+        ATOMIC_BLOCK(ATOMIC_FORCEON) {
+            delta = microsstamp - micros();
+        }
+
+        if (delta <= 0) {
+            break;
+        }
+    }
+}
+
 typedef struct {
     uint8_t length;
     uint8_t fopts[15];
@@ -156,7 +172,7 @@ class SlimLoRa {
     uint8_t mDataRate = SF10BW125;
     uint8_t mRx1DataRateOffset = 0;
     uint8_t mRx2DataRate;
-    uint32_t mRx1DelayTicks;
+    uint32_t mRx1DelayMicros;
     bool mHasJoined = false;
     bool mAdrEnabled = true;
     uint16_t mTxFrameCounter = 0;
@@ -165,18 +181,18 @@ class SlimLoRa {
     uint8_t mPseudoByte;
     fopts_t mPendingFopts = {0};
     uint8_t mRxSymbols = LORAWAN_RX_MIN_SYMBOLS;
-    uint32_t mTxDoneTickstamp;
+    unsigned long mTxDoneMicros;
     int8_t mLastPacketSnr;
     static const uint8_t FrequencyTable[9][3];
     static const uint8_t DataRateTable[7][3];
-    static const uint16_t DRTicksPerHalfSymbol[7];
+    static const uint16_t DRMicrosPerHalfSymbol[7];
     static const uint8_t S_Table[16][16];
     int8_t RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, uint8_t channel, uint8_t dri, uint32_t rx_tickstamp);
-    void RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t channel, uint8_t dri, bool start_timer);
+    void RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t channel, uint8_t dri);
     void RfmWrite(uint8_t address, uint8_t data);
     uint8_t RfmRead(uint8_t address);
-    uint32_t CaluclateDriftAdjustment(uint32_t delay, uint16_t ticks_per_half_symbol);
-    int32_t CalculateRxWindowOffset(int16_t ticks_per_half_symbol);
+    uint32_t CaluclateDriftAdjustment(uint32_t delay, uint16_t micros_per_half_symbol);
+    int32_t CalculateRxWindowOffset(int16_t micros_per_half_symbol);
     uint32_t CalculateRxDelay(uint8_t data_rate, uint32_t delay);
     bool CheckMic(uint8_t *cmic, uint8_t *rmic);
     bool ProcessJoinAccept1_0(uint8_t *rfm_data, uint8_t rfm_data_length);
