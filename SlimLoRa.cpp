@@ -35,7 +35,7 @@ extern const uint8_t DevAddr[4];
 static SPISettings spi_settings = SPISettings(4000000, MSBFIRST, SPI_MODE0);
 
 // Frequency band for europe
-const uint8_t PROGMEM SlimLoRa::FrequencyTable[9][3] = {
+const uint8_t PROGMEM SlimLoRa::kFrequencyTable[9][3] = {
     { 0xD9, 0x06, 0x8B }, // Channel 0 868.100 MHz / 61.035 Hz = 14222987 = 0xD9068B
     { 0xD9, 0x13, 0x58 }, // Channel 1 868.300 MHz / 61.035 Hz = 14226264 = 0xD91358
     { 0xD9, 0x20, 0x24 }, // Channel 2 868.500 MHz / 61.035 Hz = 14229540 = 0xD92024
@@ -48,7 +48,7 @@ const uint8_t PROGMEM SlimLoRa::FrequencyTable[9][3] = {
 };
 
 // Data rate
-const uint8_t PROGMEM SlimLoRa::DataRateTable[7][3] = {
+const uint8_t PROGMEM SlimLoRa::kDataRateTable[7][3] = {
     // bw    sf   agc
     { 0x72, 0xC4, 0x0C }, // SF12BW125
     { 0x72, 0xB4, 0x0C }, // SF11BW125
@@ -60,7 +60,7 @@ const uint8_t PROGMEM SlimLoRa::DataRateTable[7][3] = {
 };
 
 // Half symbol times
-const uint16_t PROGMEM SlimLoRa::DRMicrosPerHalfSymbol[7] = {
+const uint16_t PROGMEM SlimLoRa::kDRMicrosPerHalfSymbol[7] = {
     ((128 << 7) * MICROS_PER_SECOND + 500000) / 1000000, // SF12BW125
     ((128 << 6) * MICROS_PER_SECOND + 500000) / 1000000, // SF11BW125
     ((128 << 5) * MICROS_PER_SECOND + 500000) / 1000000, // SF10BW125
@@ -70,8 +70,8 @@ const uint16_t PROGMEM SlimLoRa::DRMicrosPerHalfSymbol[7] = {
     ((128 << 1) * MICROS_PER_SECOND + 500000) / 1000000  // SF7BW250
 };
 
-// S_Table for AES encryption
-const uint8_t PROGMEM SlimLoRa::S_Table[16][16] = {
+// S table for AES encryption
+const uint8_t PROGMEM SlimLoRa::kSTable[16][16] = {
     {0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76},
     {0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0, 0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4, 0x72, 0xC0},
     {0xB7, 0xFD, 0x93, 0x26, 0x36, 0x3F, 0xF7, 0xCC, 0x34, 0xA5, 0xE5, 0xF1, 0x71, 0xD8, 0x31, 0x15},
@@ -91,7 +91,7 @@ const uint8_t PROGMEM SlimLoRa::S_Table[16][16] = {
 };
 
 TinyLoRa::TinyLoRa(uint8_t pin_nss) {
-    mPinNss = pin_nss;
+    pin_nss_ = pin_nss;
 }
 
 void SlimLoRa::Begin() {
@@ -99,7 +99,7 @@ void SlimLoRa::Begin() {
 
     SPI.begin();
 
-    pinMode(mPinNss, OUTPUT);
+    pinMode(pin_nss_, OUTPUT);
 
     // Sleep
     RfmWrite(RFM_REG_OP_MODE, 0x00);
@@ -128,10 +128,10 @@ void SlimLoRa::Begin() {
     RfmWrite(RFM_REG_FIFO_TX_BASE_ADDR, 0x80);
     RfmWrite(RFM_REG_FIFO_RX_BASE_ADDR, 0x00);
 
-    mTxFrameCounter = GetTxFrameCounter();
-    mRxFrameCounter = GetRxFrameCounter();
-    mRx2DataRate = GetRx2DataRate();
-    mRx1DelayMicros = GetRx1Delay() * MICROS_PER_SECOND;
+    tx_frame_counter_ = GetTxFrameCounter();
+    rx_frame_counter_ = GetRxFrameCounter();
+    rx2_data_rate_ = GetRx2DataRate();
+    rx1_delay_micros_ = GetRx1Delay() * MICROS_PER_SECOND;
 }
 
 /**
@@ -161,25 +161,25 @@ int8_t SlimLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, ui
     RfmWrite(RFM_REG_FIFO_ADDR_PTR, 0x00);
 
     // Channel
-    RfmWrite(RFM_REG_FR_MSB, pgm_read_byte(&(FrequencyTable[channel][0])));
-    RfmWrite(RFM_REG_FR_MID, pgm_read_byte(&(FrequencyTable[channel][1])));
-    RfmWrite(RFM_REG_FR_LSB, pgm_read_byte(&(FrequencyTable[channel][2])));
+    RfmWrite(RFM_REG_FR_MSB, pgm_read_byte(&(kFrequencyTable[channel][0])));
+    RfmWrite(RFM_REG_FR_MID, pgm_read_byte(&(kFrequencyTable[channel][1])));
+    RfmWrite(RFM_REG_FR_LSB, pgm_read_byte(&(kFrequencyTable[channel][2])));
 
     // Bandwidth / Coding Rate / Implicit Header Mode
-    RfmWrite(RFM_REG_MODEM_CONFIG_1, pgm_read_byte(&(DataRateTable[dri][0])));
+    RfmWrite(RFM_REG_MODEM_CONFIG_1, pgm_read_byte(&(kDataRateTable[dri][0])));
 
     // Spreading Factor / Tx Continuous Mode / Crc
-    RfmWrite(RFM_REG_MODEM_CONFIG_2, pgm_read_byte(&(DataRateTable[dri][1])));
+    RfmWrite(RFM_REG_MODEM_CONFIG_2, pgm_read_byte(&(kDataRateTable[dri][1])));
 
     // Automatic Gain Control / Low Data Rate Optimize
-    modem_config_3 = pgm_read_byte(&(DataRateTable[dri][2]));
+    modem_config_3 = pgm_read_byte(&(kDataRateTable[dri][2]));
     if (dri == SF12BW125 || dri == SF11BW125) {
         modem_config_3 |= 0x08;
     }
     RfmWrite(RFM_REG_MODEM_CONFIG_3, modem_config_3);
 
     // Rx timeout
-    RfmWrite(RFM_REG_SYMB_TIMEOUT_LSB, mRxSymbols);
+    RfmWrite(RFM_REG_SYMB_TIMEOUT_LSB, rx_symbols_);
 
     // Clear interrupts
     RfmWrite(RFM_REG_IRQ_FLAGS, 0xFF);
@@ -208,7 +208,7 @@ int8_t SlimLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, ui
     }
 
     // SNR
-    mLastPacketSnr = (int8_t) RfmRead(RFM_REG_PKT_SNR_VALUE) / 4;
+    last_packet_snr_ = (int8_t) RfmRead(RFM_REG_PKT_SNR_VALUE) / 4;
 
     // Clear interrupts
     RfmWrite(RFM_REG_IRQ_FLAGS, 0xFF);
@@ -247,18 +247,18 @@ void SlimLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t cha
     RfmWrite(RFM_REG_INVERT_IQ_2, 0x1D);
 
     // Channel
-    RfmWrite(RFM_REG_FR_MSB, pgm_read_byte(&(FrequencyTable[channel][0])));
-    RfmWrite(RFM_REG_FR_MID, pgm_read_byte(&(FrequencyTable[channel][1])));
-    RfmWrite(RFM_REG_FR_LSB, pgm_read_byte(&(FrequencyTable[channel][2])));
+    RfmWrite(RFM_REG_FR_MSB, pgm_read_byte(&(kFrequencyTable[channel][0])));
+    RfmWrite(RFM_REG_FR_MID, pgm_read_byte(&(kFrequencyTable[channel][1])));
+    RfmWrite(RFM_REG_FR_LSB, pgm_read_byte(&(kFrequencyTable[channel][2])));
 
     // Bandwidth / Coding Rate / Implicit Header Mode
-    RfmWrite(RFM_REG_MODEM_CONFIG_1, pgm_read_byte(&(DataRateTable[dri][0])));
+    RfmWrite(RFM_REG_MODEM_CONFIG_1, pgm_read_byte(&(kDataRateTable[dri][0])));
 
     // Spreading Factor / Tx Continuous Mode / Crc
-    RfmWrite(RFM_REG_MODEM_CONFIG_2, pgm_read_byte(&(DataRateTable[dri][1])));
+    RfmWrite(RFM_REG_MODEM_CONFIG_2, pgm_read_byte(&(kDataRateTable[dri][1])));
 
     // Automatic Gain Control / Low Data Rate Optimize
-    modem_config_3 = pgm_read_byte(&(DataRateTable[dri][2]));
+    modem_config_3 = pgm_read_byte(&(kDataRateTable[dri][2]));
     if (dri == SF12BW125 || dri == SF11BW125) {
         modem_config_3 |= 0x08;
     }
@@ -283,7 +283,7 @@ void SlimLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t cha
     while ((RfmRead(RFM_REG_IRQ_FLAGS) & RFM_STATUS_TX_DONE) != RFM_STATUS_TX_DONE);
 
     ATOMIC_BLOCK(ATOMIC_FORCEON) {
-        mTxDoneMicros = micros();
+        tx_done_micros_ = micros();
     }
 
     // Clear interrupt
@@ -293,10 +293,10 @@ void SlimLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t cha
     RfmWrite(RFM_REG_OP_MODE, 0x00);
 
     // Saves memory cycles, at worst 10 lost packets
-    if (++mTxFrameCounter % 10) {
-        SetTxFrameCounter(mTxFrameCounter);
+    if (++tx_frame_counter_ % 10) {
+        SetTxFrameCounter(tx_frame_counter_);
     }
-    mAdrAckCounter++;
+    adr_ack_counter_++;
 }
 
 /**
@@ -309,7 +309,7 @@ void SlimLoRa::RfmWrite(uint8_t address, uint8_t data) {
     SPI.beginTransaction(RFM_spisettings);
 
     // Set NSS pin Low to start communication
-    digitalWrite(mPinNss, LOW);
+    digitalWrite(pin_nss_, LOW);
 
     // Send addres with MSB 1 to write
     SPI.transfer(address | 0x80);
@@ -317,7 +317,7 @@ void SlimLoRa::RfmWrite(uint8_t address, uint8_t data) {
     SPI.transfer(data);
 
     // Set NSS pin High to end communication
-    digitalWrite(mPinNss, HIGH);
+    digitalWrite(pin_nss_, HIGH);
 
     SPI.endTransaction();
 }
@@ -334,7 +334,7 @@ uint8_t SlimLoRa::RfmRead(uint8_t address) {
     SPI.beginTransaction(RFM_spisettings);
 
     // Set NSS pin low to start SPI communication
-    digitalWrite(mPinNss, LOW);
+    digitalWrite(pin_nss_, LOW);
 
     // Send Address
     SPI.transfer(address);
@@ -342,7 +342,7 @@ uint8_t SlimLoRa::RfmRead(uint8_t address) {
     data = SPI.transfer(0x00);
 
     // Set NSS high to end communication
-    digitalWrite(mPinNss, HIGH);
+    digitalWrite(pin_nss_, HIGH);
 
     SPI.endTransaction();
 
@@ -358,10 +358,10 @@ uint32_t SlimLoRa::CaluclateDriftAdjustment(uint32_t delay, uint16_t micros_per_
     uint32_t drift = delay * 5 / 100;
     delay -= drift;
 
-    if ((255 - mRxSymbols) * micros_per_half_symbol < drift) {
-        mRxSymbols = 255;
+    if ((255 - rx_symbols_) * micros_per_half_symbol < drift) {
+        rx_symbols_ = 255;
     } else {
-        mRxSymbols = 6 + drift / micros_per_half_symbol;
+        rx_symbols_ = 6 + drift / micros_per_half_symbol;
     }
 
     return delay;
@@ -377,7 +377,7 @@ int32_t SlimLoRa::CalculateRxWindowOffset(int16_t micros_per_half_symbol) {
     if (rx_symbols < LORAWAN_RX_MIN_SYMBOLS) {
         rx_symbols = LORAWAN_RX_MIN_SYMBOLS;
     }
-    mRxSymbols = rx_symbols;
+    rx_symbols_ = rx_symbols;
 
     return (8 - rx_symbols) * micros_per_half_symbol - LORAWAN_RX_MARGIN_MICROS;
 }
@@ -391,7 +391,7 @@ uint32_t SlimLoRa::CalculateRxDelay(uint8_t data_rate, uint32_t delay) {
     uint16_t micros_per_half_symbol;
     int32_t offset;
 
-    micros_per_half_symbol = pgm_read_word(&(DRMicrosPerHalfSymbol[data_rate]));
+    micros_per_half_symbol = pgm_read_word(&(kDRMicrosPerHalfSymbol[data_rate]));
     offset = CalculateRxWindowOffset(micros_per_half_symbol);
 
     return CaluclateDriftAdjustment(delay + offset, micros_per_half_symbol);
@@ -401,7 +401,7 @@ uint32_t SlimLoRa::CalculateRxDelay(uint8_t data_rate, uint32_t delay) {
  * Enables/disables the ADR mechanism.
  */
 void SlimLoRa::SetAdrEnabled(bool enabled) {
-    mAdrEnabled = enabled;
+    adr_enabled_ = enabled;
 }
 
 #if LORAWAN_OTAA_ENABLED
@@ -409,7 +409,7 @@ void SlimLoRa::SetAdrEnabled(bool enabled) {
  * Check if the device joined a LoRaWAN network.
  */
 bool SlimLoRa::HasJoined() {
-    return mHasJoined;
+    return has_joined_;
 }
 
 /**
@@ -462,8 +462,8 @@ int8_t SlimLoRa::Join() {
     }
     packet_length += 4;
 
-    mChannel = mPseudoByte & 0x01;
-    RfmSendPacket(packet, packet_length, mChannel, mDataRate, true);
+    channel_ = pseudo_byte_ & 0x01;
+    RfmSendPacket(packet, packet_length, channel_, data_rate_, true);
 
     if (!ProcessJoinAccept(1)) {
         return 0;
@@ -678,12 +678,12 @@ int8_t SlimLoRa::ProcessJoinAccept(uint8_t window) {
     uint32_t join_nonce;
 
     if (window == 1) {
-        rx_delay = CalculateRxDelay(mDataRate, LORAWAN_JOIN_ACCEPT_DELAY1_MICROS);
-        packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, mDataRate, mTxDoneMicros + rx_delay);
+        rx_delay = CalculateRxDelay(data_rate_, LORAWAN_JOIN_ACCEPT_DELAY1_MICROS);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), channel_, data_rate_, tx_done_micros_ + rx_delay);
     } else {
 
-        rx_delay = CalculateRxDelay(mRx2DataRate, LORAWAN_JOIN_ACCEPT_DELAY2_MICROS);
-        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneMicros + rx_delay);
+        rx_delay = CalculateRxDelay(rx2_data_rate_, LORAWAN_JOIN_ACCEPT_DELAY2_MICROS);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, rx2_data_rate_, tx_done_micros_ + rx_delay);
     }
 
     if (packet_length <= 0) {
@@ -735,7 +735,7 @@ int8_t SlimLoRa::ProcessJoinAccept(uint8_t window) {
     }
 
     if (!mic_valid) {
-        mHasJoined = false;
+        has_joined_ = false;
         result = LORAWAN_ERROR_INVALID_MIC;
         goto end;
     }
@@ -748,24 +748,24 @@ int8_t SlimLoRa::ProcessJoinAccept(uint8_t window) {
     dev_addr[3] = packet[7];
     SetDevAddr(dev_addr);
 
-    mRx1DataRateOffset = (packet[11] & 0x70) >> 4;
-    SetRx1DataRateOffset(mRx1DataRateOffset);
+    rx1_data_rate_offset_ = (packet[11] & 0x70) >> 4;
+    SetRx1DataRateOffset(rx1_data_rate_offset_);
 
-    mRx2DataRate = packet[11] & 0xF;
-    SetRx2DataRate(mRx2DataRate);
+    rx2_data_rate_ = packet[11] & 0xF;
+    SetRx2DataRate(rx2_data_rate_);
 
     SetRx1Delay(packet[12] & 0xF);
-    mRx1DelayMicros = GetRx1Delay() * MICROS_PER_SECOND;
+    rx1_delay_micros_ = GetRx1Delay() * MICROS_PER_SECOND;
 
-    mTxFrameCounter = 0;
+    tx_frame_counter_ = 0;
     SetTxFrameCounter(0);
 
-    mRxFrameCounter = 0;
+    rx_frame_counter_ = 0;
     SetRxFrameCounter(0);
 
-    mAdrAckCounter = 0;
+    adr_ack_counter_ = 0;
 
-    mHasJoined = true;
+    has_joined_ = true;
 
     result = 0;
 
@@ -806,15 +806,15 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
 
                 if (status == 0x7) {
                     if (new_rx2_dr != 0xF) {
-                        mDataRate = new_rx2_dr;
+                        data_rate_ = new_rx2_dr;
                     }
                     if (tx_power != 0xF) {
                         RfmWrite(RFM_REG_PA_CONFIG, 0xF0 | (14 - tx_power * 2));
                     }
                 }
 
-                mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_LINK_ADR_ANS;
-                mPendingFopts.fopts[mPendingFopts.length++] = status;
+                pending_fopts_.fopts[pending_fopts_.length++] = LORAWAN_FOPT_LINK_ADR_ANS;
+                pending_fopts_.fopts[pending_fopts_.length++] = status;
 
                 i += LORAWAN_FOPT_LINK_ADR_REQ_SIZE;
                 break;
@@ -834,23 +834,23 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                 }
 
                 if (status == 0x7) {
-                    mRx1DataRateOffset = new_rx1_dr_offset;
-                    SetRx1DataRateOffset(mRx1DataRateOffset);
+                    rx1_data_rate_offset_ = new_rx1_dr_offset;
+                    SetRx1DataRateOffset(rx1_data_rate_offset_);
 
-                    mRx2DataRate = new_rx2_dr;
-                    SetRx2DataRate(mRx2DataRate);
+                    rx2_data_rate_ = new_rx2_dr;
+                    SetRx2DataRate(rx2_data_rate_);
                 }
 
-                mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_RX_PARAM_SETUP_ANS;
-                mPendingFopts.fopts[mPendingFopts.length++] = status;
+                pending_fopts_.fopts[pending_fopts_.length++] = LORAWAN_FOPT_RX_PARAM_SETUP_ANS;
+                pending_fopts_.fopts[pending_fopts_.length++] = status;
 
                 i += LORAWAN_FOPT_RX_PARAM_SETUP_REQ_SIZE;
                 break;
             case LORAWAN_FOPT_DEV_STATUS_REQ:
-                mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_DEV_STATUS_ANS;
+                pending_fopts_.fopts[pending_fopts_.length++] = LORAWAN_FOPT_DEV_STATUS_ANS;
                 // TODO: Battery level
-                mPendingFopts.fopts[mPendingFopts.length++] = 0xFF;
-                mPendingFopts.fopts[mPendingFopts.length++] = (mLastPacketSnr & 0x80) >> 2 | mLastPacketSnr & 0x1F;
+                pending_fopts_.fopts[pending_fopts_.length++] = 0xFF;
+                pending_fopts_.fopts[pending_fopts_.length++] = (last_packet_snr_ & 0x80) >> 2 | last_packet_snr_ & 0x1F;
 
                 i += LORAWAN_FOPT_DEV_STATUS_REQ_SIZE;
                 break;
@@ -859,9 +859,9 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
                 break;
             case LORAWAN_FOPT_RX_TIMING_SETUP_REQ:
                 SetRx1Delay(options[i + 1] & 0xF);
-                mRx1DelayMicros = GetRx1Delay() * MICROS_PER_SECOND;
+                rx1_delay_micros_ = GetRx1Delay() * MICROS_PER_SECOND;
 
-                mPendingFopts.fopts[mPendingFopts.length++] = LORAWAN_FOPT_RX_TIMING_SETUP_ANS;
+                pending_fopts_.fopts[pending_fopts_.length++] = LORAWAN_FOPT_RX_TIMING_SETUP_ANS;
 
                 i += LORAWAN_FOPT_RX_TIMING_SETUP_REQ_SIZE;
                 break;
@@ -906,15 +906,15 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
 #endif // LORAWAN_OTAA_ENABLED
 
     if (window == 1) {
-        rx1_offset_dr = mDataRate + mRx1DataRateOffset; // Reversed table index
+        rx1_offset_dr = data_rate_ + rx1_data_rate_offset_; // Reversed table index
         if (rx1_offset_dr > SF7BW125) {
             rx1_offset_dr = SF7BW125;
         }
-        rx_delay = CalculateRxDelay(rx1_offset_dr, mRx1DelayMicros);
-        packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, rx1_offset_dr, mTxDoneMicros + rx_delay);
+        rx_delay = CalculateRxDelay(rx1_offset_dr, rx1_delay_micros_);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), channel_, rx1_offset_dr, tx_done_micros_ + rx_delay);
     } else {
-        rx_delay = CalculateRxDelay(mRx2DataRate, mRx1DelayMicros + MICROS_PER_SECOND);
-        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneMicros + rx_delay);
+        rx_delay = CalculateRxDelay(rx2_data_rate_, rx1_delay_micros_ + MICROS_PER_SECOND);
+        packet_length = RfmReceivePacket(packet, sizeof(packet), 8, rx2_data_rate_, tx_done_micros_ + rx_delay);
     }
 
     if (packet_length <= 0) {
@@ -934,7 +934,7 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
     }
 
     frame_counter = packet[7] << 8 | packet[6];
-    if (frame_counter < mRxFrameCounter) {
+    if (frame_counter < rx_frame_counter_) {
         result = LORAWAN_ERROR_INVALID_FRAME_COUNTER;
         goto end;
     }
@@ -960,13 +960,13 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
     }
 
     // Saves memory cycles, we could loose more than 3 packets if we don't receive a packet at all
-    mRxFrameCounter = frame_counter + 1;
-    if (mRxFrameCounter % 3) {
-        SetRxFrameCounter(mRxFrameCounter);
+    rx_frame_counter_ = frame_counter + 1;
+    if (rx_frame_counter_ % 3) {
+        SetRxFrameCounter(rx_frame_counter_);
     }
 
     // Reset ADR acknowledge counter
-    mAdrAckCounter = 0;
+    adr_ack_counter_ = 0;
 
     // Process MAC commands
     f_options_length = packet[5] & 0xF;
@@ -1010,12 +1010,12 @@ void SlimLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
 #endif // LORAWAN_OTAA_ENABLED
 
     // Encrypt the data
-    EncryptPayload(payload, payload_length, mTxFrameCounter, LORAWAN_DIRECTION_UP);
+    EncryptPayload(payload, payload_length, tx_frame_counter_, LORAWAN_DIRECTION_UP);
 
     // ADR backoff
     // TODO: Probably too aggressive
-    if (mAdrEnabled && mAdrAckCounter >= LORAWAN_ADR_ACK_LIMIT + LORAWAN_ADR_ACK_DELAY) {
-        mDataRate = SF12BW125;
+    if (adr_enabled_ && adr_ack_counter_ >= LORAWAN_ADR_ACK_LIMIT + LORAWAN_ADR_ACK_DELAY) {
+        data_rate_ = SF12BW125;
         RfmWrite(RFM_REG_PA_CONFIG, 0xFE);
     }
 
@@ -1036,27 +1036,27 @@ void SlimLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
 
     // Frame control
     packet[packet_length] = 0;
-    if (mAdrEnabled) {
+    if (adr_enabled_) {
         packet[packet_length] |= LORAWAN_FCTRL_ADR;
 
-        if (mAdrAckCounter >= LORAWAN_ADR_ACK_LIMIT) {
+        if (adr_ack_counter_ >= LORAWAN_ADR_ACK_LIMIT) {
             packet[packet_length] |= LORAWAN_FCTRL_ADR_ACK_REQ;
         }
     }
-    packet[packet_length++] |= mPendingFopts.length;
+    packet[packet_length++] |= pending_fopts_.length;
 
     // Uplink frame counter
-    packet[packet_length++] = mTxFrameCounter & 0xFF;
-    packet[packet_length++] = mTxFrameCounter >> 8;
+    packet[packet_length++] = tx_frame_counter_ & 0xFF;
+    packet[packet_length++] = tx_frame_counter_ >> 8;
 
     // Frame options
-    for (uint8_t i = 0; i < mPendingFopts.length; i++) {
-        packet[packet_length++] = mPendingFopts.fopts[i];
+    for (uint8_t i = 0; i < pending_fopts_.length; i++) {
+        packet[packet_length++] = pending_fopts_.fopts[i];
     }
 
     // Clear fopts
-    memset(mPendingFopts.fopts, 0, mPendingFopts.length);
-    mPendingFopts.length = 0;
+    memset(pending_fopts_.fopts, 0, pending_fopts_.length);
+    pending_fopts_.length = 0;
 
     // Frame port
     packet[packet_length++] = fport;
@@ -1067,13 +1067,13 @@ void SlimLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
     }
 
     // Calculate MIC
-    CalculateMessageMic(packet, mic, packet_length, mTxFrameCounter, LORAWAN_DIRECTION_UP);
+    CalculateMessageMic(packet, mic, packet_length, tx_frame_counter_, LORAWAN_DIRECTION_UP);
     for (uint8_t i = 0; i < 4; i++) {
         packet[packet_length++] = mic[i];
     }
 
-    mChannel = mPseudoByte & 0x03;
-    RfmSendPacket(packet, packet_length, mChannel, mDataRate, true);
+    channel_ = pseudo_byte_ & 0x03;
+    RfmSendPacket(packet, packet_length, channel_, data_rate_, true);
 }
 
 /**
@@ -1271,7 +1271,7 @@ void SlimLoRa::CalculateMic(const uint8_t *key, uint8_t *data, uint8_t *initial_
     final_mic[2] = new_data[2];
     final_mic[3] = new_data[3];
 
-    mPseudoByte = final_mic[3];
+    pseudo_byte_ = final_mic[3];
 }
 
 /**
@@ -1489,10 +1489,10 @@ uint8_t SlimLoRa::AesSubByte(uint8_t byte) {
 
     // S_Row    = ((byte >> 4) & 0x0F);
     // S_Collum = ((byte >> 0) & 0x0F);
-    // S_Byte   = S_Table[S_Row][S_Collum];
+    // S_Byte   = kSTable[S_Row][S_Collum];
 
-    // return S_Table[((byte >> 4) & 0x0F)][((byte >> 0) & 0x0F)]; // original
-    return pgm_read_byte(&(S_Table[((byte >> 4) & 0x0F)][((byte >> 0) & 0x0F)]));
+    // return kSTable[((byte >> 4) & 0x0F)][((byte >> 0) & 0x0F)]; // original
+    return pgm_read_byte(&(kSTable[((byte >> 4) & 0x0F)][((byte >> 0) & 0x0F)]));
 }
 
 void SlimLoRa::AesShiftRows(uint8_t (*state)[4]) {
