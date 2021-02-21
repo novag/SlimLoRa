@@ -15,19 +15,11 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http:// www.gnu.org/licenses/>.
  */
-#ifdef DEBUG
-#include "debug.h"
-#endif
-
-#include <avr/eeprom.h>
 #include <avr/pgmspace.h>
-#include <string.h>
-#include <util/atomic.h>
-#include <util/delay.h>
+#include <Arduino.h>
+#include <SPI.h>
 
-#include "pins.h"
-#include "slimlora.h"
-#include "tinyspi.h"
+#include "SlimLoRa.h"
 
 #if LORAWAN_OTAA_ENABLED
 extern const uint8_t DevEUI[8];
@@ -40,7 +32,7 @@ extern const uint8_t AppSKey[16];
 extern const uint8_t DevAddr[4];
 #endif
 
-extern TinySPI SPI;
+static SPISettings spi_settings = SPISettings(4000000, MSBFIRST, SPI_MODE0);
 
 // Frequency band for europe
 const uint8_t PROGMEM SlimLoRa::FrequencyTable[9][3] = {
@@ -98,8 +90,16 @@ const uint8_t PROGMEM SlimLoRa::S_Table[16][16] = {
     {0x8C, 0xA1, 0x89, 0x0D, 0xBF, 0xE6, 0x42, 0x68, 0x41, 0x99, 0x2D, 0x0F, 0xB0, 0x54, 0xBB, 0x16}
 };
 
-void SlimLoRa::Init() {
+TinyLoRa::TinyLoRa(uint8_t pin_nss) {
+    mPinNss = pin_nss;
+}
+
+void SlimLoRa::Begin() {
     uint8_t detect_optimize;
+
+    SPI.begin();
+
+    pinMode(mPinNss, OUTPUT);
 
     // Sleep
     RfmWrite(RFM_REG_OP_MODE, 0x00);
@@ -189,10 +189,6 @@ int8_t SlimLoRa::RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, ui
 
     // Switch RFM to Rx
     RfmWrite(RFM_REG_OP_MODE, 0x86);
-
-#ifdef DEBUG
-    debug_fast();
-#endif // DEBUG
 
     // Wait for RxDone or RxTimeout
     do {
@@ -297,10 +293,6 @@ void SlimLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t cha
         }
     }
 
-#ifdef DEBUG
-    debug(DSTR_RSP_TXDONE);
-#endif
-
     // Clear interrupt
     RfmWrite(RFM_REG_IRQ_FLAGS, 0xFF);
 
@@ -321,16 +313,20 @@ void SlimLoRa::RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t cha
  * @param data Data to be written.
  */
 void SlimLoRa::RfmWrite(uint8_t address, uint8_t data) {
+    SPI.beginTransaction(RFM_spisettings);
+
     // Set NSS pin Low to start communication
-    PRT_RFM_NSS &= ~(1 << PB_RFM_NSS);
+    digitalWrite(mPinNss, LOW);
 
     // Send addres with MSB 1 to write
-    SPI.Transfer(address | 0x80);
+    SPI.transfer(address | 0x80);
     // Send Data
-    SPI.Transfer(data);
+    SPI.transfer(data);
 
     // Set NSS pin High to end communication
-    PRT_RFM_NSS |= (1 << PB_RFM_NSS);
+    digitalWrite(mPinNss, HIGH);
+
+    SPI.endTransaction();
 }
 
 /**
@@ -342,16 +338,20 @@ void SlimLoRa::RfmWrite(uint8_t address, uint8_t data) {
 uint8_t SlimLoRa::RfmRead(uint8_t address) {
     uint8_t data;
 
+    SPI.beginTransaction(RFM_spisettings);
+
     // Set NSS pin low to start SPI communication
-    PRT_RFM_NSS &= ~(1 << PB_RFM_NSS);
+    digitalWrite(mPinNss, LOW);
 
     // Send Address
-    SPI.Transfer(address);
-    // Send 0x00 to be able to receive the answer from the RFM
-    data = SPI.Transfer(0x00);
+    SPI.transfer(address);
+    // Receive
+    data = SPI.transfer(0x00);
 
     // Set NSS high to end communication
-    PRT_RFM_NSS |= (1 << PB_RFM_NSS);
+    digitalWrite(mPinNss, HIGH);
+
+    SPI.endTransaction();
 
     // Return received data
     return data;
@@ -685,23 +685,13 @@ int8_t SlimLoRa::ProcessJoinAccept(uint8_t window) {
     uint32_t join_nonce;
 
     if (window == 1) {
-#ifdef DEBUG
-        debug(DSTR_1);
-#endif // DEBUG
-
         rx_delay = CalculateRxDelay(mDataRate, LORAWAN_JOIN_ACCEPT_DELAY1_TICKS);
         packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, mDataRate, mTxDoneTickstamp + rx_delay);
     } else {
-#ifdef DEBUG
-        debug(DSTR_2);
-#endif // DEBUG
 
         rx_delay = CalculateRxDelay(mRx2DataRate, LORAWAN_JOIN_ACCEPT_DELAY2_TICKS);
         packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneTickstamp + rx_delay);
     }
-#ifdef DEBUG
-    debug_int16(DSTR_PJA_PLEN, packet_length);
-#endif
 
     if (packet_length <= 0) {
         result = LORAWAN_ERROR_NO_PACKET_RECEIVED;
@@ -790,10 +780,6 @@ end:
     if (result == 0 || window == 2) {
         stop_timer0();
     }
-
-#ifdef DEBUG
-    debug_int16(DSTR_RESULT, result);
-#endif
 
     return result;
 }
@@ -899,16 +885,6 @@ void SlimLoRa::ProcessFrameOptions(uint8_t *options, uint8_t f_options_length) {
             case LORAWAN_FOPT_DEVICE_TIME_ANS:
                 i += LORAWAN_FOPT_DEVICE_TIME_ANS_SIZE;
                 break;
-            case LORAWAN_FOPT_PROP_DISABLE_ADR:
-                mAdrEnabled = false;
-
-                i += LORAWAN_FOPT_PROP_DISABLE_ADR_SIZE;
-                break;
-            case LORAWAN_FOPT_PROP_ENABLE_ADR:
-                mAdrEnabled = true;
-
-                i += LORAWAN_FOPT_PROP_ENABLE_ADR_SIZE;
-                break;
             default:
                 return;
         }
@@ -941,10 +917,6 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
 #endif // LORAWAN_OTAA_ENABLED
 
     if (window == 1) {
-#ifdef DEBUG
-        debug(DSTR_1);
-#endif // DEBUG
-
         rx1_offset_dr = mDataRate + mRx1DataRateOffset; // Reversed table index
         if (rx1_offset_dr > SF7BW125) {
             rx1_offset_dr = SF7BW125;
@@ -952,16 +924,9 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
         rx_delay = CalculateRxDelay(rx1_offset_dr, mRx1DelayTicks);
         packet_length = RfmReceivePacket(packet, sizeof(packet), mChannel, rx1_offset_dr, mTxDoneTickstamp + rx_delay);
     } else {
-#ifdef DEBUG
-        debug(DSTR_2);
-#endif // DEBUG
-
         rx_delay = CalculateRxDelay(mRx2DataRate, mRx1DelayTicks + TICKS_PER_SECOND);
         packet_length = RfmReceivePacket(packet, sizeof(packet), 8, mRx2DataRate, mTxDoneTickstamp + rx_delay);
     }
-#ifdef DEBUG
-    debug_int16(DSTR_PD_PLEN, packet_length);
-#endif
 
     if (packet_length <= 0) {
         result = LORAWAN_ERROR_NO_PACKET_RECEIVED;
@@ -981,10 +946,6 @@ int8_t SlimLoRa::ProcessDownlink(uint8_t window) {
 
     frame_counter = packet[7] << 8 | packet[6];
     if (frame_counter < mRxFrameCounter) {
-#ifdef DEBUG
-        debug_uint16(DSTR_FCNT_L, mRxFrameCounter);
-        debug_uint16(DSTR_FCNT_R, frame_counter);
-#endif
         result = LORAWAN_ERROR_INVALID_FRAME_COUNTER;
         goto end;
     }
@@ -1037,10 +998,6 @@ end:
     if (result == 0 || window == 2) {
         stop_timer0();
     }
-
-#ifdef DEBUG
-    debug_int16(DSTR_RESULT, result);
-#endif
 
     return result;
 }

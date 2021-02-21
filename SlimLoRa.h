@@ -5,7 +5,6 @@
 #include <stdint.h>
 
 #include "config.h"
-#include "timing.h"
 
 // RFM registers
 #define RFM_REG_FIFO                    0x00
@@ -88,9 +87,6 @@
 #define LORAWAN_FOPT_DL_CHANNEL_ANS         0x0A
 #define LORAWAN_FOPT_DEVICE_TIME_REQ        0x0D
 #define LORAWAN_FOPT_DEVICE_TIME_ANS        0x0D
-// Proprietary
-#define LORAWAN_FOPT_PROP_DISABLE_ADR       0x90
-#define LORAWAN_FOPT_PROP_ENABLE_ADR        0x91
 
 // LoRaWAN frame option payload size
 #define LORAWAN_FOPT_LINK_CHECK_ANS_SIZE        2
@@ -103,9 +99,6 @@
 #define LORAWAN_FOPT_TX_PARAM_SETUP_REQ_SIZE    1
 #define LORAWAN_FOPT_DL_CHANNEL_REQ_SIZE        4
 #define LORAWAN_FOPT_DEVICE_TIME_ANS_SIZE       5
-// Proprietary
-#define LORAWAN_FOPT_PROP_DISABLE_ADR_SIZE      0
-#define LORAWAN_FOPT_PROP_ENABLE_ADR_SIZE       0
 
 // LoRaWAN Join packet sizes
 #define LORAWAN_JOIN_REQUEST_SIZE           18
@@ -150,20 +143,22 @@ typedef struct {
 
 class SlimLoRa {
   public:
-    void Init(void);
+    SlimLoRa(uint8_t pin_nss);
+    void Begin(void);
     bool HasJoined(void);
     int8_t Join();
     void SendData(uint8_t fport, uint8_t *payload, uint8_t payload_length);
     void SetAdrEnabled(bool enabled);
 
   private:
+    uint8_t mPinNss;
     uint8_t mChannel = 0;
     uint8_t mDataRate = SF10BW125;
     uint8_t mRx1DataRateOffset = 0;
     uint8_t mRx2DataRate;
     uint32_t mRx1DelayTicks;
     bool mHasJoined = false;
-    bool mAdrEnabled = LORAWAN_ADR_ENABLED;
+    bool mAdrEnabled = true;
     uint16_t mTxFrameCounter = 0;
     uint16_t mRxFrameCounter = 0;
     uint8_t mAdrAckCounter = 0;

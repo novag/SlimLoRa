@@ -1,8 +1,6 @@
-# SlimLoRa library
+# SlimLoRa Arduino library (WIP, does not work yet)
 
-This repository contains the SlimLoRa LoRaWAN library with a sample project for ATtiny85 chips. It uses AES encryption routines originally written by Ideentron B.V.. SlimLoRa is compatible with all radio chips based on the Semtech SX1276 (e.g. HopeRF RFM95).
-
-Currently this library is heavily optimized for ATtiny85 chips and needs changes to run on other devices (e.g. Arduino). Furthermore, currently only the EU-868 band is supported.
+This repository contains the SlimLoRa LoRaWAN library. It uses AES encryption routines originally written by Ideentron B.V.. SlimLoRa is compatible with all radio chips based on the Semtech SX1276 (e.g. HopeRF RFM95).
 
 SlimLoRa implements the ABP and OTAA activation schemes. It has support for downlink messages and the Adaptive Data Rate (ADR) mechanism.
 
@@ -11,34 +9,14 @@ It also **does not** enforce a duty cycle. This must be ensured by the user.
 
 **Contents:**
 
-- [Purpose](#purpose)
-- [Installing](#installing)
 - [Features](#features)
 - [Requirements and Limitations](#requirements-and-limitations)
 - [Configuration](#configuration)
 - [Supported hardware](#supported-hardware)
-- [Example Program](#example-sketches)
-- [Timing](#timing)
 - [Release History](#release-history)
-- [Sample Board](#sample-board)
+- [Contributions](#contributions)
 - [Trademark Acknowledgements](#trademark-acknowledgements)
 - [License](#license)
-
-## Purpose
-
-I developed SlimLoRa and this sample project as a fun project to prove that a full LoRaWAN implementation with support for various sensors can run on an ATtiny85 MCU with only 5 data pins, 8K of flash memory, 512 bytes of EEPROM, 512 bytes of SRAM and without an external clock.
-
-## Installing
-
-To compile and flash this library, attach your USB-ASP programmer and execute the following commands:
-
-```bash
-git clone https://github.com/novag/LoRa-ATtiny-Node
-cd LoRa-ATtiny-Node
-cp config.example.h config.h # Insert your key(s)
-make
-make program
-```
 
 ## Features
 
@@ -65,58 +43,21 @@ Be sure to put connected sensors into sleep mode before sending data to save ene
 SlimLoRa uses the Timer0 on every call of the Join or SendData methods. Between these calls Timer0 can be used by the user for other purposes.
 See also timing.h and timing.c.
 
-### Memory requirements
-SlimLoRa uses a maximum of 141 bytes of RAM for its stack and 103 bytes for global symbols.
-
-The current project has a maximum total RAM usage of about 250 bytes.
-On an ATtiny85 you should never call into the Join and SendData methods from deeply nested functions. Analyze and profile your program!
-
 ## Configuration
 
 LoRaWAN settings and attached sensors can be configured in the config.h header file.
 
-#### Debug output
-
-Disable all sensors and attach a UART console to pin 4.
-
-```bash
-make DEBUG=1
-make program
-```
-
 ## Supported hardware
 
-ATtiny85 with radios based on the SX1276 are supported (e.g. HopeRF RFM95).
-
-## Example Program
-
-This repository contains a working sample project that sends temperature, humidity and voltage data every 15 minutes to the network.
-The user can choose between ABP and OTAA activation and can enable or disable ADR.
-
-The ATtiny can act as an SPI, I2C and Dallas 1-Wire master. Thus the following three sensors are currently supported:
-- DHT22 (Non-standardized OneWire)
-- DS18B20 (Dallas 1-Wire)
-- SI7021 (I2C slave)
-
-That means, with the available ports, in addition to the radio module, either one non-standardized OneWire device, multiple Dallas 1-Wire devices, multiple I2C devices or one additonal SPI slave device can be connected.
-
-Only select a single device in the configuration file. Otherwhise the first selected device will take precedence.
-
-## Timing
+Radios based on the SX1276 are supported (e.g. HopeRF RFM95).
 
 ## Release History
 
-- V0.1.0 Initial release.
-
-## Sample Board
-
-<img src="https://raw.githubusercontent.com/novag/LoRa-ATtiny-Node/master/img/front.jpg" alt="front" width="302" height="403"> <img src="https://raw.githubusercontent.com/novag/LoRa-ATtiny-Node/master/img/side.jpg" alt="side" width="302" height="403">
-
 ## Contributions
 
-This library started from parts written by Ideetron B.V.. Of these, almost only the AES routines are left. Thanks to Ideetron B.V.!
+This library started from parts written by Ideetron B.V.. Thanks to Ideetron B.V.!
 
-- Hendrik Hagendorn
+- novag ([LoRa-ATtiny-Node](https://github.com/novag/LoRa-ATtiny-Node))
 
 - Ideentron B.V. - [RFM95W_Nexus](https://github.com/Ideetron/RFM95W_Nexus)
 

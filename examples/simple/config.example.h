@@ -3,28 +3,12 @@
 
 #include <stdint.h>
 
-#define SLEEP_TOTAL 113 // 113*8s = 904s --> approx. 1 message every 15min
-
 // LoRaWAN ADR
-#define LORAWAN_ADR_ENABLED     1
 #define LORAWAN_ADR_ACK_LIMIT   48
 #define LORAWAN_ADR_ACK_DELAY   16
 
 // Enable LoRaWAN Over-The-Air Activation
 #define LORAWAN_OTAA_ENABLED    1
-
-#define ENABLE_DHT22        1
-#define ENABLE_SI7021       0
-#define ENABLE_DS18B20      0
-
-// DS18B20 resolution [9,12]
-#define CFG_DS18B20_RES     9
-
-#if ENABLE_SI7021
-#define ENABLE_I2C_MASTER   1
-#else
-#define ENABLE_I2C_MASTER   0
-#endif
 
 #if LORAWAN_OTAA_ENABLED
 const uint8_t DevEUI[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
