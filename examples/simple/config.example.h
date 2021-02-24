@@ -9,6 +9,7 @@
 
 // Enable LoRaWAN Over-The-Air Activation
 #define LORAWAN_OTAA_ENABLED    1
+#define LORAWAN_KEEP_SESSION    0
 
 #if LORAWAN_OTAA_ENABLED
 const uint8_t DevEUI[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
