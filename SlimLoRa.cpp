@@ -355,7 +355,7 @@ uint8_t SlimLoRa::RfmRead(uint8_t address) {
 /**
  * Calculates the clock drift adjustment(+-5%).
  */
-uint32_t SlimLoRa::CaluclateDriftAdjustment(uint32_t delay, uint16_t micros_per_half_symbol) {
+uint32_t SlimLoRa::CalculateDriftAdjustment(uint32_t delay, uint16_t micros_per_half_symbol) {
     // Clock drift
     uint32_t drift = delay * 5 / 100;
     delay -= drift;
@@ -396,7 +396,7 @@ uint32_t SlimLoRa::CalculateRxDelay(uint8_t data_rate, uint32_t delay) {
     micros_per_half_symbol = pgm_read_word(&(kDRMicrosPerHalfSymbol[data_rate]));
     offset = CalculateRxWindowOffset(micros_per_half_symbol);
 
-    return CaluclateDriftAdjustment(delay + offset, micros_per_half_symbol);
+    return CalculateDriftAdjustment(delay + offset, micros_per_half_symbol);
 }
 
 /**

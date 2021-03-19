@@ -200,7 +200,7 @@ class SlimLoRa {
     void RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t channel, uint8_t dri);
     void RfmWrite(uint8_t address, uint8_t data);
     uint8_t RfmRead(uint8_t address);
-    uint32_t CaluclateDriftAdjustment(uint32_t delay, uint16_t micros_per_half_symbol);
+    uint32_t CalculateDriftAdjustment(uint32_t delay, uint16_t micros_per_half_symbol);
     int32_t CalculateRxWindowOffset(int16_t micros_per_half_symbol);
     uint32_t CalculateRxDelay(uint8_t data_rate, uint32_t delay);
     bool CheckMic(uint8_t *cmic, uint8_t *rmic);
