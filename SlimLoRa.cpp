@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http:// www.gnu.org/licenses/>.
  */
 #include <avr/pgmspace.h>
+#include <avr/eeprom.h>
 #include <Arduino.h>
 #include <SPI.h>
 
@@ -24,7 +25,7 @@
 #if LORAWAN_OTAA_ENABLED
 extern const uint8_t DevEUI[8];
 extern const uint8_t JoinEUI[8];
-extern const uint8_t NwkKey[16];
+extern const uint8_t NwkKey[16]; // For LoRaWAN-1.1
 extern const uint8_t AppKey[16];
 #else
 extern const uint8_t NwkSKey[16];
@@ -32,7 +33,7 @@ extern const uint8_t AppSKey[16];
 extern const uint8_t DevAddr[4];
 #endif
 
-static SPISettings spi_settings = SPISettings(4000000, MSBFIRST, SPI_MODE0);
+static SPISettings RFM_spisettings = SPISettings(4000000, MSBFIRST, SPI_MODE0);
 
 // Frequency band for europe
 const uint8_t PROGMEM SlimLoRa::kFrequencyTable[9][3] = {
@@ -60,10 +61,11 @@ const uint8_t PROGMEM SlimLoRa::kDataRateTable[7][3] = {
 };
 
 // Half symbol times
-const uint16_t PROGMEM SlimLoRa::kDRMicrosPerHalfSymbol[7] = {
-    ((128 << 7) * MICROS_PER_SECOND + 500000) / 1000000, // SF12BW125
-    ((128 << 6) * MICROS_PER_SECOND + 500000) / 1000000, // SF11BW125
-    ((128 << 5) * MICROS_PER_SECOND + 500000) / 1000000, // SF10BW125
+//const uint32_t PROGMEM SlimLoRa::kDRMicrosPerHalfSymbol[7] = {
+const long PROGMEM SlimLoRa::kDRMicrosPerHalfSymbol[7] = {
+    ((128 << 7) * MICROS_PER_SECOND + 500000) / 1000000, // SF12BW125 BUG with overflow.
+    ((128 << 6) * MICROS_PER_SECOND + 500000) / 1000000, // SF11BW125 BUG with overflow.
+    ((128 << 5) * MICROS_PER_SECOND + 500000) / 1000000, // SF10BW125 BUG with overflow.
     ((128 << 4) * MICROS_PER_SECOND + 500000) / 1000000, // SF9BW125
     ((128 << 3) * MICROS_PER_SECOND + 500000) / 1000000, // SF8BW125
     ((128 << 2) * MICROS_PER_SECOND + 500000) / 1000000, // SF7BW125
@@ -90,7 +92,7 @@ const uint8_t PROGMEM SlimLoRa::kSTable[16][16] = {
     {0x8C, 0xA1, 0x89, 0x0D, 0xBF, 0xE6, 0x42, 0x68, 0x41, 0x99, 0x2D, 0x0F, 0xB0, 0x54, 0xBB, 0x16}
 };
 
-TinyLoRa::TinyLoRa(uint8_t pin_nss) {
+SlimLoRa::SlimLoRa(uint8_t pin_nss) {
     pin_nss_ = pin_nss;
 }
 
@@ -129,11 +131,26 @@ void SlimLoRa::Begin() {
     RfmWrite(RFM_REG_FIFO_RX_BASE_ADDR, 0x00);
 
     // Init MAC state
+#if LORAWAN_KEEP_SESSION
     has_joined_ = GetHasJoined();
+#endif
     tx_frame_counter_ = GetTxFrameCounter();
     rx_frame_counter_ = GetRxFrameCounter();
     rx2_data_rate_ = GetRx2DataRate();
     rx1_delay_micros_ = GetRx1Delay() * MICROS_PER_SECOND;
+}
+
+void wait_until(unsigned long microsstamp) {
+	long delta;
+	
+	while (1) {
+		ATOMIC_BLOCK(ATOMIC_FORCEON) {
+		delta = microsstamp - micros();
+		}
+		if (delta <= 0) {
+		break;
+		}
+	}
 }
 
 /**
@@ -390,7 +407,7 @@ int32_t SlimLoRa::CalculateRxWindowOffset(int16_t micros_per_half_symbol) {
  * @return The RX delay in micros.
  */
 uint32_t SlimLoRa::CalculateRxDelay(uint8_t data_rate, uint32_t delay) {
-    uint16_t micros_per_half_symbol;
+    uint32_t micros_per_half_symbol;
     int32_t offset;
 
     micros_per_half_symbol = pgm_read_word(&(kDRMicrosPerHalfSymbol[data_rate]));
@@ -465,7 +482,7 @@ int8_t SlimLoRa::Join() {
     packet_length += 4;
 
     channel_ = pseudo_byte_ & 0x01;
-    RfmSendPacket(packet, packet_length, channel_, data_rate_, true);
+    RfmSendPacket(packet, packet_length, channel_, data_rate_);
 
     if (!ProcessJoinAccept(1)) {
         return 0;
@@ -1083,7 +1100,7 @@ void SlimLoRa::Transmit(uint8_t fport, uint8_t *payload, uint8_t payload_length)
     }
 
     channel_ = pseudo_byte_ & 0x03;
-    RfmSendPacket(packet, packet_length, channel_, data_rate_, true);
+    RfmSendPacket(packet, packet_length, channel_, data_rate_);
 }
 
 /**

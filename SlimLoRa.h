@@ -3,8 +3,15 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <util/atomic.h>
 
-#include "config.h"
+// LoRaWAN ADR
+#define LORAWAN_ADR_ACK_LIMIT   48
+#define LORAWAN_ADR_ACK_DELAY   16
+
+// Enable LoRaWAN Over-The-Air Activation
+#define LORAWAN_OTAA_ENABLED    1
+#define LORAWAN_KEEP_SESSION    1
 
 #define MICROS_PER_SECOND               1000000
 
@@ -141,20 +148,6 @@
 #define SF12BW125   0
 
 
-void wait_until(unsigned long microsstamp) {
-    long delta;
-
-    while (1) {
-        ATOMIC_BLOCK(ATOMIC_FORCEON) {
-            delta = microsstamp - micros();
-        }
-
-        if (delta <= 0) {
-            break;
-        }
-    }
-}
-
 typedef struct {
     uint8_t length;
     uint8_t fopts[LORAWAN_FOPTS_MAX_SIZE];
@@ -194,7 +187,7 @@ class SlimLoRa {
     int8_t last_packet_snr_;
     static const uint8_t kFrequencyTable[9][3];
     static const uint8_t kDataRateTable[7][3];
-    static const uint16_t kDRMicrosPerHalfSymbol[7];
+    static const long kDRMicrosPerHalfSymbol[7];
     static const uint8_t kSTable[16][16];
     int8_t RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, uint8_t channel, uint8_t dri, uint32_t rx_tickstamp);
     void RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t channel, uint8_t dri);
