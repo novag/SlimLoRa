@@ -187,7 +187,7 @@ class SlimLoRa {
     int8_t last_packet_snr_;
     static const uint8_t kFrequencyTable[9][3];
     static const uint8_t kDataRateTable[7][3];
-    static const long kDRMicrosPerHalfSymbol[7];
+    static const uint32_t kDRMicrosPerHalfSymbol[7];
     static const uint8_t kSTable[16][16];
     int8_t RfmReceivePacket(uint8_t *packet, uint8_t packet_max_length, uint8_t channel, uint8_t dri, uint32_t rx_tickstamp);
     void RfmSendPacket(uint8_t *packet, uint8_t packet_length, uint8_t channel, uint8_t dri);

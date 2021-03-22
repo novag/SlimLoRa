@@ -61,8 +61,7 @@ const uint8_t PROGMEM SlimLoRa::kDataRateTable[7][3] = {
 };
 
 // Half symbol times
-//const uint32_t PROGMEM SlimLoRa::kDRMicrosPerHalfSymbol[7] = {
-const long PROGMEM SlimLoRa::kDRMicrosPerHalfSymbol[7] = {
+const uint32_t PROGMEM SlimLoRa::kDRMicrosPerHalfSymbol[7] = {
     ((128 << 7) * MICROS_PER_SECOND + 500000) / 1000000, // SF12BW125 BUG with overflow.
     ((128 << 6) * MICROS_PER_SECOND + 500000) / 1000000, // SF11BW125 BUG with overflow.
     ((128 << 5) * MICROS_PER_SECOND + 500000) / 1000000, // SF10BW125 BUG with overflow.
@@ -423,6 +422,17 @@ void SlimLoRa::SetAdrEnabled(bool enabled) {
     adr_enabled_ = enabled;
 }
 
+/**
+ * Validates the calculated 4-byte MIC against the received 4-byte MIC.
+ *
+ * @param cmic Calculated 4-byte MIC.
+ * @param rmic Received 4-byte MIC.
+ */
+bool SlimLoRa::CheckMic(uint8_t *cmic, uint8_t *rmic) {
+    return cmic[0] == rmic[0] && cmic[1] == rmic[1]
+            && cmic[2] == rmic[2] && cmic[3] == rmic[3];
+}
+
 #if LORAWAN_OTAA_ENABLED
 /**
  * Check if the device joined a LoRaWAN network.
@@ -489,17 +499,6 @@ int8_t SlimLoRa::Join() {
     }
 
     return ProcessJoinAccept(2);
-}
-
-/**
- * Validates the calculated 4-byte MIC against the received 4-byte MIC.
- *
- * @param cmic Calculated 4-byte MIC.
- * @param rmic Received 4-byte MIC.
- */
-bool SlimLoRa::CheckMic(uint8_t *cmic, uint8_t *rmic) {
-    return cmic[0] == rmic[0] && cmic[1] == rmic[1]
-            && cmic[2] == rmic[2] && cmic[3] == rmic[3];
 }
 
 /**
