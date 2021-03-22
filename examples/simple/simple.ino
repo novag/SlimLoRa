@@ -1,6 +1,5 @@
 #include <stdint.h>
 
-#include "config.h"
 #include "SlimLoRa.h"
 
 void setup() {
@@ -20,9 +19,9 @@ void setup() {
 #endif // LORAWAN_OTAA_ENABLED
 
     payload_length = sizeof(payload);
-    payload[0] = 0xAB;
-    payload[1] = 0xCD;
-    payload[2] = 0xEF;
+    payload[0] = 0x01;
+    payload[1] = 0x10;
+    payload[2] = 0xFF;
 
     lora.SendData(fport, payload, payload_length);
 }
